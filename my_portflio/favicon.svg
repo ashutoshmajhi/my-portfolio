@@ -1,0 +1,42 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Define the gradient for the ghost's body -->
+    <linearGradient id="coolGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a78bfa; stop-opacity:1" /> <!-- Light Purple -->
+      <stop offset="100%" style="stop-color:#60a5fa; stop-opacity:1" /> <!-- Light Blue -->
+    </linearGradient>
+    
+    <!-- Define a subtle glow filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- CSS Animation for a gentle floating effect -->
+  <style>
+    .ghost {
+      animation: float 3s ease-in-out infinite;
+      transform-origin: center;
+    }
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-3px); }
+      100% { transform: translateY(0px); }
+    }
+  </style>
+
+  <!-- The Ghost Group with the animation and filter applied -->
+  <g class="ghost" filter="url(#glow)">
+    <!-- Ghost Body - Filled with the gradient -->
+    <path d="M10 58 C 2 45, 2 25, 26 10 S 52 5, 54 25 C 62 35, 62 45, 54 58 L 48 52 L 42 58 L 36 52 L 30 58 L 24 52 L 18 58 Z"
+          stroke="#4f46e5" fill="url(#coolGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Eyes - Changed to white for better contrast -->
+    <circle cx="26" cy="32" r="4" fill="#ffffff"/>
+    <circle cx="42" cy="34" r="4" fill="#ffffff"/>
+  </g>
+</svg>
+

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Voice Activity Detection (VVAD) Architecture</title>
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='waveGradient' x1='0%25' y1='0%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' style='stop-color:%2360a5fa;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='%231e293b' stroke='%23334155' stroke-width='1'%3E%3Cpath d='M 50 0 A 50 50 0 0 1 93.3 25 L 50 50 Z' /%3E%3Cpath d='M 93.3 25 A 50 50 0 0 1 93.3 75 L 50 50 Z' /%3E%3Cpath d='M 93.3 75 A 50 50 0 0 1 50 100 L 50 50 Z' /%3E%3Cpath d='M 50 100 A 50 50 0 0 1 6.7 75 L 50 50 Z' /%3E%3Cpath d='M 6.7 75 A 50 50 0 0 1 6.7 25 L 50 50 Z' /%3E%3Cpath d='M 6.7 25 A 50 50 0 0 1 50 0 L 50 50 Z' /%3E%3C/g%3E%3Cpath d='M 25 50 Q 37.5 30, 50 50 T 75 50' stroke='url(%23waveGradient)' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0e1a; /* Dark blue background */
+            overflow-x: hidden;
+        }
+        .flow-card {
+            background-color: #1e293b; /* Slate-800 */
+            border: 1px solid #334155; /* Slate-700 */
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        }
+        .flow-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 10px 20px -3px rgba(79, 70, 229, 0.2), 0 4px 6px -2px rgba(79, 70, 229, 0.1);
+            border-color: #4f46e5;
+        }
+        .arrow {
+            position: relative;
+            color: #475569; /* Slate-600 */
+        }
+        .arrow-line {
+            width: 100%;
+            height: 2px;
+            background-color: #475569; /* Slate-600 */
+        }
+        .arrow-head {
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+        }
+        .arrow-down .arrow-head {
+            border-top: 8px solid #475569; /* Slate-600 */
+        }
+        .main-title {
+            background: linear-gradient(to right, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .pipeline-title {
+             border-bottom: 2px solid #4f46e5; /* Indigo-600 */
+        }
+        /* Animation Styles */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        .reveal-active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .results-table th {
+            background-color: #334155; /* Slate-700 */
+        }
+        .results-table .best-result {
+            background-color: rgba(74, 222, 128, 0.1);
+            color: #86efac;
+            font-weight: 600;
+        }
+         .results-table .best-result td:first-child {
+            border-left: 2px solid #22c55e;
+        }
+    </style>
+</head>
+<body class="text-gray-200 p-4 sm:p-6 md:p-10">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Main Title -->
+        <header class="text-center mb-12 reveal">
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <!-- SVG Logo -->
+                <svg width="80" height="80" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <g fill="#1e293b" stroke="#334155" stroke-width="1">
+                        <!-- Camera Shutter Blades -->
+                        <path d="M 50 0 A 50 50 0 0 1 93.3 25 L 50 50 Z" />
+                        <path d="M 93.3 25 A 50 50 0 0 1 93.3 75 L 50 50 Z" />
+                        <path d="M 93.3 75 A 50 50 0 0 1 50 100 L 50 50 Z" />
+                        <path d="M 50 100 A 50 50 0 0 1 6.7 75 L 50 50 Z" />
+                        <path d="M 6.7 75 A 50 50 0 0 1 6.7 25 L 50 50 Z" />
+                        <path d="M 6.7 25 A 50 50 0 0 1 50 0 L 50 50 Z" />
+                    </g>
+                    <!-- Sound Wave -->
+                    <path d="M 25 50 Q 37.5 30, 50 50 T 75 50" stroke="url(#waveGradient)" stroke-width="4" fill="none" stroke-linecap="round"/>
+                </svg>
+                <div class="text-center sm:text-left">
+                    <h1 class="text-4xl md:text-5xl font-bold main-title tracking-tight">Visual Voice Activity Detection</h1>
+                    <p class="mt-2 text-lg text-gray-400">The VVAD-LRS3 Dataset for Visual Voice Activity Detection</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Data Source and Preprocessing Section -->
+        <section class="text-center mb-12">
+            <a href="https://mmai.io/datasets/lip_reading/" target="_blank" rel="noopener noreferrer" class="inline-block w-full max-w-xl reveal">
+                <div class="flow-card rounded-xl shadow-lg p-4 md:p-6 text-center">
+                    <img src="https://i.postimg.cc/cLK5zHcZ/dataset-cover.png" alt="LRS3 Dataset Cover" class="rounded-lg mb-4 w-full h-auto">
+                    <div>
+                        <h2 class="text-xl font-semibold text-white">Data Source: LRS3 Dataset</h2>
+                        <p class="text-sm text-gray-400">Thousands of sentences from TED/TEDx Videos</p>
+                        <p class="text-xs text-blue-400 mt-1 hover:underline">Click to view dataset</p>
+                    </div>
+                </div>
+            </a>
+
+            <div class="flex justify-center my-4 reveal">
+                <div class="arrow arrow-down h-12 w-2 flex flex-col items-center justify-end">
+                    <div class="arrow-line flex-grow"></div>
+                    <div class="arrow-head"></div>
+                </div>
+            </div>
+
+            <div class="inline-block flow-card rounded-xl shadow-lg p-4 md:p-6 w-full max-w-md reveal">
+                 <div class="flex items-center justify-center space-x-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/><path d="M12 11.5v3"/><path d="M8.5 10v5"/><path d="M15.5 13v2"/></svg>
+                     <div>
+                        <h2 class="text-xl font-semibold text-white">Preprocessing</h2>
+                        <p class="text-sm text-gray-400">Extract 38 Frames Per Video (1.52s Window)</p>
+                    </div>
+                </div>
+            </div>
+             <div class="flex justify-center my-4 reveal">
+                <div class="arrow arrow-down h-12 w-2 flex flex-col items-center justify-end">
+                    <div class="arrow-line flex-grow"></div>
+                    <div class="arrow-head"></div>
+                </div>
+            </div>
+            
+            <!-- Data Samples Section -->
+            <div class="max-w-4xl mx-auto mb-12 reveal">
+                <h3 class="text-xl font-semibold text-white mb-6 text-center">Data Samples</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
+                    <div class="flow-card rounded-xl p-4 text-center">
+                        <img src="https://i.postimg.cc/t7QxkBqL/speaking.png" alt="Speaking Example" class="rounded-lg w-full h-auto mx-auto max-w-[200px]">
+                        <p class="text-sm mt-3 font-medium text-green-400">Positive Sample (Speaking)</p>
+                    </div>
+                    <div class="flow-card rounded-xl p-4 text-center">
+                        <img src="https://i.postimg.cc/HsknDGKB/not-speaking.png" alt="Not Speaking Example" class="rounded-lg w-full h-auto mx-auto max-w-[200px]">
+                        <p class="text-sm mt-3 font-medium text-red-400">Negative Sample (Not Speaking)</p>
+                    </div>
+                </div>
+            </div>
+
+             <div class="flex justify-center my-4 reveal">
+                <div class="arrow arrow-down h-12 w-2 flex flex-col items-center justify-end">
+                    <div class="arrow-line flex-grow"></div>
+                    <div class="arrow-head"></div>
+                </div>
+            </div>
+
+            <!-- Forking for Face and Lip crops -->
+            <div class="flex justify-center space-x-4 md:space-x-8 reveal">
+                 <div class="w-1/2 h-1 bg-slate-700"></div>
+                 <div class="w-1/2 h-1 bg-slate-700"></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-[-2px]">
+                <div class="reveal">
+                     <div class="arrow arrow-down h-8 w-2 mx-auto flex flex-col items-center justify-end"><div class="arrow-line flex-grow"></div><div class="arrow-head"></div></div>
+                    <div class="flow-card rounded-xl shadow-lg p-4">
+                        <h3 class="font-semibold text-white">Face Crops</h3>
+                        <p class="text-sm text-gray-400">Full Face Region</p>
+                    </div>
+                </div>
+                <div class="reveal">
+                     <div class="arrow arrow-down h-8 w-2 mx-auto flex flex-col items-center justify-end"><div class="arrow-line flex-grow"></div><div class="arrow-head"></div></div>
+                    <div class="flow-card rounded-xl shadow-lg p-4">
+                        <h3 class="font-semibold text-white">Lip Crops</h3>
+                        <p class="text-sm text-gray-400">Mouth Region Only</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Pipelines Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+
+            <!-- Pipeline 1: Classifier Approach -->
+            <section class="flex flex-col space-y-4">
+                <h2 class="text-2xl font-bold text-center mb-6 pb-2 pipeline-title reveal">Approach 1: Deep Learning Classification</h2>
+                
+                <div class="flow-card rounded-xl shadow-lg p-6 reveal">
+                    <h3 class="text-lg font-semibold text-center text-white mb-4">Embedding Generation</h3>
+                    <p class="text-sm text-center text-gray-400 mb-6">Generate feature embeddings from Face/Lip sequences using various models.</p>
+                    <div class="grid grid-cols-2 gap-4 text-center">
+                        <div class="bg-slate-700/50 p-3 rounded-lg"><p>ResNet50</p></div>
+                        <div class="bg-slate-700/50 p-3 rounded-lg"><p>VideoMAE</p></div>
+                        <div class="bg-slate-700/50 p-3 rounded-lg"><p>ViViT</p></div>
+                        <div class="bg-slate-700/50 p-3 rounded-lg"><p>VGG16</p></div>
+                    </div>
+                </div>
+
+                <div class="arrow arrow-down h-12 w-2 mx-auto flex flex-col items-center justify-end reveal"><div class="arrow-line flex-grow"></div><div class="arrow-head"></div></div>
+
+                <div class="flow-card rounded-xl shadow-lg p-6 reveal">
+                     <h3 class="text-lg font-semibold text-center text-white mb-4">Classifier Training</h3>
+                     <p class="text-sm text-center text-gray-400 mb-6">Train classifiers on the generated embeddings to detect speech activity.</p>
+                    <div class="flex justify-center space-x-4">
+                         <div class="bg-slate-700/50 p-3 rounded-lg"><p>Feedforward CNN</p></div>
+                         <div class="bg-slate-700/50 p-3 rounded-lg"><p>FCN</p></div>
+                    </div>
+                </div>
+
+                <div class="arrow arrow-down h-12 w-2 mx-auto flex flex-col items-center justify-end reveal"><div class="arrow-line flex-grow"></div><div class="arrow-head"></div></div>
+
+                <div class="flow-card rounded-xl shadow-lg p-6 text-center reveal">
+                    <h3 class="text-lg font-semibold text-white">Output & Evaluation</h3>
+                    <p class="text-gray-400 text-sm mt-2 mb-4">Binary classification and performance measurement.</p>
+                    <div class="flex justify-center items-center space-x-6">
+                        <div class="text-center">
+                            <span class="inline-block bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-sm font-medium">Speaking</span>
+                        </div>
+                         <div class="text-center">
+                            <span class="inline-block bg-red-500/20 text-red-300 px-3 py-1 rounded-full text-sm font-medium">Not Speaking</span>
+                        </div>
+                    </div>
+                    <div class="mt-6 border-t border-slate-700 pt-4">
+                        <p class="text-sm font-medium text-gray-300">Metrics:</p>
+                        <p class="text-xs text-gray-400">Accuracy, Precision, Recall, F1-Score</p>
+                    </div>
+                </div>
+
+                <div class="arrow arrow-down h-12 w-2 mx-auto flex flex-col items-center justify-end reveal"><div class="arrow-line flex-grow"></div><div class="arrow-head"></div></div>
+
+                <div class="flow-card rounded-xl shadow-lg p-6 text-center reveal">
+                    <h3 class="text-lg font-semibold text-white">Quantitative Results (Face Modality)</h3>
+                    <div class="overflow-x-auto mt-4">
+                        <table class="w-full text-sm text-left text-gray-300 results-table">
+                            <thead class="text-xs text-gray-200 uppercase">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 rounded-l-lg">Model</th>
+                                    <th scope="col" class="px-4 py-3">Accuracy</th>
+                                    <th scope="col" class="px-4 py-3">Precision</th>
+                                    <th scope="col" class="px-4 py-3">Recall</th>
+                                    <th scope="col" class="px-4 py-3 rounded-r-lg">F1-Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-slate-700">
+                                    <td class="px-4 py-3">ResNet50</td>
+                                    <td class="px-4 py-3">73.80%</td>
+                                    <td class="px-4 py-3">0.72</td>
+                                    <td class="px-4 py-3">0.72</td>
+                                    <td class="px-4 py-3">0.72</td>
+                                </tr>
+                                <tr class="border-b border-slate-700 best-result">
+                                    <td class="px-4 py-3">VideoMAE</td>
+                                    <td class="px-4 py-3">84.50%</td>
+                                    <td class="px-4 py-3">0.82</td>
+                                    <td class="px-4 py-3">0.83</td>
+                                    <td class="px-4 py-3">0.84</td>
+                                </tr>
+                                <tr class="border-b border-slate-700">
+                                    <td class="px-4 py-3">ViViT</td>
+                                    <td class="px-4 py-3">83.00%</td>
+                                    <td class="px-4 py-3">0.82</td>
+                                    <td class="px-4 py-3">0.82</td>
+                                    <td class="px-4 py-3">0.83</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3">VGG16</td>
+                                    <td class="px-4 py-3">81.20%</td>
+                                    <td class="px-4 py-3">0.78</td>
+                                    <td class="px-4 py-3">0.81</td>
+                                    <td class="px-4 py-3">0.80</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Pipeline 2: Generative Approach -->
+            <section class="flex flex-col space-y-4">
+                <h2 class="text-2xl font-bold text-center mb-6 pb-2 pipeline-title reveal">Approach 2: Generative (Video-LLaVA)</h2>
+
+                <div class="flow-card rounded-xl shadow-lg p-6 reveal">
+                     <h3 class="text-lg font-semibold text-center text-white mb-4">Data Conversion</h3>
+                     <p class="text-sm text-center text-gray-400">Recompile 38-frame image sequences back into MP4 video clips using OpenCV.</p>
+                </div>
+
+                <div class="arrow arrow-down h-12 w-2 mx-auto flex flex-col items-center justify-end reveal"><div class="arrow-line flex-grow"></div><div class="arrow-head"></div></div>
+                
+                <div class="flow-card rounded-xl shadow-lg p-6 reveal">
+                    <h3 class="text-lg font-semibold text-center text-white mb-4">Video-LLM Processing</h3>
+                    <p class="text-sm text-center text-gray-400 mb-6">Process video clips and a text prompt to generate a descriptive response.</p>
+                    <div class="bg-slate-900 rounded-lg p-4 text-sm">
+                        <p class="font-mono text-gray-400">
+                            <span class="text-purple-400">Model:</span> Video-LLaVA-7B-hf
+                        </p>
+                        <p class="font-mono text-gray-400 mt-2">
+                           <span class="text-cyan-400">Prompt:</span> "Analyze this video... Is the person speaking or silent? Describe the visual cues."
+                        </p>
+                    </div>
+                </div>
+
+                 <div class="arrow arrow-down h-12 w-2 mx-auto flex flex-col items-center justify-end reveal"><div class="arrow-line flex-grow"></div><div class="arrow-head"></div></div>
+
+                <div class="flow-card rounded-xl shadow-lg p-6 text-center reveal">
+                     <h3 class="text-lg font-semibold text-white">Output & Analysis</h3>
+                     <p class="text-gray-400 text-sm mt-2 mb-4">Qualitative, descriptive output in natural language.</p>
+                     
+                     <div class="space-y-4 text-left text-sm">
+                        <div class="bg-slate-700/50 p-3 rounded-lg">
+                           <p><span class="font-semibold text-green-300">Speaking:</span> "The person... appears to be speaking. Their mouth is open and moving..."</p>
+                        </div>
+                        <div class="bg-slate-700/50 p-3 rounded-lg">
+                            <p><span class="font-semibold text-red-300">Not Speaking:</span> "The person... is silent. Their lips are closed and still..."</p>
+                        </div>
+                     </div>
+                      <!-- <div class="mt-6 border-t border-slate-700 pt-4">
+                        <p class="text-sm font-medium text-gray-300">Advantage:</p>
+                        <p class="text-xs text-gray-400">Provides rich, explainable outputs detailing visual reasoning ("glass-box" approach).</p>
+                    </div> -->
+                </div>
+            </section>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const revealElements = document.querySelectorAll('.reveal');
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('reveal-active');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, {
+                threshold: 0.1
+            });
+
+            revealElements.forEach(elem => {
+                observer.observe(elem);
+            });
+        });
+    </script>
+</body>
+</html>
+
